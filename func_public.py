@@ -132,19 +132,26 @@ def construct_market_prices(client):
 
 def should_trade_based_on_time():
     """
-    Check if the current time in South African time (SAST) is within trading hours.
+    Check if the current time in South African time (SAST) is within trading hours and not on weekends.
 
     Returns:
-        bool: True if within trading hours, False otherwise.
+        bool: True if within trading hours and not on Saturday or Sunday, False otherwise.
     """
     # Get the current time in South Africa
     south_africa_tz = pytz.timezone("Africa/Johannesburg")
-    current_time = datetime.now(south_africa_tz).time()
+    now = datetime.now(south_africa_tz)
+    current_time = now.time()
+    current_day = now.weekday()  # Monday is 0, Sunday is 6
 
     # Define trading hours: 10:00 AM to midnight (SAST)
     start_time = datetime.strptime("10:00", "%H:%M").time()
     end_time = datetime.strptime("23:59", "%H:%M").time()  # Midnight
 
+    # Return False if it's Saturday (5) or Sunday (6)
+    if current_day >= 5:
+        return False
+
+    # Return True if the current time is within trading hours
     return start_time <= current_time <= end_time
 
 def get_oracle_price(client, market):
