@@ -37,8 +37,12 @@ async def monitor_and_exit_trades(file_path="active_trades.json", sleep_interval
                 # Get the current oracle price
                 current_price = float(get_oracle_price(client, market))
 
-                # Calculate the exit price based on the side and format it
-                exit_price = current_price * 1.05 if side == "SELL" else current_price * 0.95
+                # Calculate the formatted exit price based on side
+                if side == "BUY":
+                    exit_price = current_price * 0.95
+                else:  # side == "SELL"
+                    exit_price = current_price * 1.05
+
                 formatted_exit_price = format_number(exit_price, tick_size)
 
                 # Check if the take-profit condition is met
@@ -52,6 +56,8 @@ async def monitor_and_exit_trades(file_path="active_trades.json", sleep_interval
                             price=float(formatted_exit_price),
                             reduce_only=True,
                         )
+                        # Close the trade in the simulator
+                        trade_simulator.close_trade(market, float(formatted_exit_price))
                         print(f"Simulated exit trade for {market}")
                     except Exception as e:
                         print(f"Failed to simulate exit trade for {market}: {e}")
