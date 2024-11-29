@@ -7,11 +7,9 @@ from constants import ZSCORE_THRESH, USD_PER_TRADE, TP_AMOUNT
 from func_utils import format_number
 from func_public import get_candles_recent
 from func_private import (
-    is_open_positions,
-    is_max_positions,
-    free_colleteral,
     place_market_order,
     MarketOrderError,
+    trade_simulator,  # For accessing TradeSimulator functions
 )
 from func_cointegration import calculate_zscore
 from func_messaging import send_message
@@ -84,9 +82,10 @@ async def open_positions(client):
                 z_score = calculate_zscore(spread).values.tolist()[-1]
 
                 if abs(z_score) >= ZSCORE_THRESH:
-                    is_base_open = is_open_positions(client, base_market)
-                    is_quote_open = is_open_positions(client, quote_market)
-                    max_positions = is_max_positions(client)
+                    # Check open positions and max positions via trade_simulator
+                    is_base_open = trade_simulator.is_market_open(base_market)
+                    is_quote_open = trade_simulator.is_market_open(quote_market)
+                    max_positions = trade_simulator.is_max_positions()
 
                     if not (is_base_open or is_quote_open) and not max_positions:
                         base_side = "BUY" if z_score < 0 else "SELL"
@@ -100,7 +99,6 @@ async def open_positions(client):
                             1 / oracle_base_price * USD_PER_TRADE,
                             float(market_base["markets"][base_market]["stepSize"])
                         )
-                        base_price = oracle_base_price * 1.05 if base_side == "BUY" else oracle_base_price * 0.95
                         base_take_profit = calculate_take_profit(base_tick_size, base_side, base_size, oracle_base_price)
 
                         # Quote market parameters
@@ -111,14 +109,15 @@ async def open_positions(client):
                             1 / oracle_quote_price * USD_PER_TRADE,
                             float(market_quote["markets"][quote_market]["stepSize"])
                         )
-                        quote_price = oracle_quote_price * 1.05 if quote_side == "BUY" else oracle_quote_price * 0.95
                         quote_take_profit = calculate_take_profit(quote_tick_size, quote_side, quote_size, oracle_quote_price)
+                        base_price = oracle_base_price * 1.05 if base_side == "BUY" else oracle_base_price * 0.95
+                        quote_price = oracle_quote_price * 1.05 if quote_side == "BUY" else oracle_quote_price * 0.95
 
                         # Format prices
                         accept_base_price = format_number(base_price, base_tick_size)
                         accept_quote_price = format_number(quote_price, quote_tick_size)
 
-                        if free_colleteral(client):
+                        if trade_simulator.check_free_collateral():
                             try:
                                 # Simulate market order for base market
                                 await place_market_order(
@@ -127,6 +126,7 @@ async def open_positions(client):
                                     size=base_size,
                                     price=float(accept_base_price),
                                     reduce_only=False,
+                                    take_profit_price=base_take_profit
                                 )
                                 save_trade_to_file_safe({
                                     "market": base_market,
@@ -143,6 +143,7 @@ async def open_positions(client):
                                     size=quote_size,
                                     price=float(accept_quote_price),
                                     reduce_only=False,
+                                    take_profit_price=quote_take_profit
                                 )
                                 save_trade_to_file_safe({
                                     "market": quote_market,
@@ -151,7 +152,7 @@ async def open_positions(client):
                                     "take_profit_price": quote_take_profit,
                                     "tick_size": quote_tick_size,
                                 })
-                                
+
                                 print(f"Simulated order placed for {base_market}/{quote_market}")
                                 send_message(f"Simulated order placed for {base_market}/{quote_market}")
 
