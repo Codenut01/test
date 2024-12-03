@@ -1,18 +1,11 @@
-﻿'''
-Connect to DYDX Client
-'''
-
-from v4_client_py.clients import IndexerClient
-from v4_client_py.clients.constants import Network
+from dydx_v4_client.indexer.rest.indexer_client import IndexerClient
+from dydx_v4_client.network import LOCAL
 
 
 # Connect to DYDX CompositeClient
-def connect_to_dydx():
-
+async def connect_to_dydx():
     # Create client
-    client = IndexerClient(
-    config=Network.config_network().indexer_config,
-   )
+    client = IndexerClient(LOCAL.rest_indexer)
     print(client)
 
     # Return Client
