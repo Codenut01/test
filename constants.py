@@ -14,8 +14,8 @@ FIND_COINTEGRATED_PAIRS = True
 PLACE_TRADES = True
 
 # DYDX ACCOUNT
-DYDX_ADDRESS = 'dydx1fkc87x44q9p8p9vx2c50j8vxh5ddrjtm4tvwd0'
-DYDX_MNEMONIC = 'village syrup labor song scene dust cheap easy curtain pave correct ignore mystery enforce search ticket arrest add patrol cable poet client alpha urban'
+DYDX_ADDRESS = ''
+DYDX_MNEMONIC = ''
 
 # Telegram info
 TELEGRAM_TOKEN = "7049563480:AAFVYyIi05JzUkeIvvGFvhsU0Dv_1dBNujI"
