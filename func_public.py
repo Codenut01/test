@@ -1,37 +1,33 @@
 '''
 Connecting DYDX Public requests
 '''
-import time
-from func_utils import get_ISO_times
+import asyncio
 import pandas as pd
 import numpy as np
 from constants import RESOLUTION
 from datetime import datetime
 import pytz
-
-
-# Get revelant time periods for ISO from and to
-ISO_TIMES = get_ISO_times()
+import time
 
 
 # Get Candles Recent
-def get_candles_recent(client, market):
+async def get_candles_recent(client, market):
 
     # Define output
     close_prices = []
 
     # Protect API
-    time.sleep(0.2)
+    await asyncio.sleep(0.2)
 
     # Get data
-    candles = client.markets.get_perpetual_market_candles(
+    candles = await client.markets.get_perpetual_market_candles(
         market=market,
         resolution=RESOLUTION,
-        limit=100
+        limit=48
     )
 
     # Structure data
-    for candle in candles.data['candles']:
+    for candle in candles['candles']:
         close_prices.append(candle["close"])
 
     # Construct and return close price series
@@ -41,52 +37,58 @@ def get_candles_recent(client, market):
 
 
 
-# Get Candles Historical
-def get_candles_historical(client, market):
+async def get_candles_historical(client, market, limit=120):
+    """
+    Fetch historical market candles for a given market.
+    Args:
+        client: The dYdX client instance.
+        market: The market (e.g., "BTC-USD") to fetch data for.
+        limit: Number of candles to fetch (default: 100).
+    Returns:
+        List[Dict]: A list of dictionaries containing 'datetime' and 'close' price.
+    """
+    close_prices = []
 
-  # Define output
-  close_prices = []
+    try:
+        # Fetch candle data
+        response = await client.markets.get_perpetual_market_candles(
+            market=market,
+            resolution="5MINS",
+            limit=limit
+        )
 
-  # Extract historical price data for each timeframe
-  for timeframe in ISO_TIMES.keys():
+        # Validate response structure
+        if "candles" not in response or not response["candles"]:
+            print(f"No data returned for market {market}")
+            return close_prices
 
-    # Confirm times needed
-    tf_obj = ISO_TIMES[timeframe]
-    from_iso = tf_obj["from_iso"]
-    to_iso = tf_obj["to_iso"]
+        # Process each candle
+        for candle in response["candles"]:
+            close_prices.append({
+                "datetime": candle["startedAt"],
+                market: float(candle["close"])  # Ensure numeric close price
+            })
 
-    # Protect rate limits
-    time.sleep(0.2)
+        # Reverse to chronological order
+        close_prices.reverse()
 
-    # Get data
-    candles = client.markets.get_perpetual_market_candles(
-      market=market,
-      resolution=RESOLUTION,
-      from_iso=from_iso,
-      to_iso=to_iso,
-      limit=100
-    )
+    except Exception as e:
+        print(f"Error fetching historical candles for {market}: {e}")
 
-    # Structure data
-    for candle in candles.data["candles"]:
-      close_prices.append({"datetime": candle["startedAt"], market: candle["close"] })
-
-  # Construct and return DataFrame
-  close_prices.reverse()
-  return close_prices
+    return close_prices
 
 
 
 # Construct market prices
-def construct_market_prices(client):
+async def construct_market_prices(client):
 
     # Declare variables
     tradeable_markets = []
-    markets = client.markets.get_perpetual_markets()
+    markets = await client.markets.get_perpetual_markets()
 
     # Find tradeable pairs
-    for market in markets.data['markets'].keys():
-        market_info = markets.data['markets'][market]
+    for market in markets['markets'].keys():
+        market_info = markets['markets'][market]
         if market_info['status'] == 'ACTIVE' and market_info['marketType'] == 'CROSS':
             tradeable_markets.append(market)
 
@@ -94,7 +96,7 @@ def construct_market_prices(client):
     df = None
     for market in tradeable_markets:
         try:
-            close_prices = get_candles_historical(client, market)
+            close_prices = await get_candles_historical(client, market)
             if not close_prices:
                 print(f"Skipping {market} due to missing data")
                 continue
@@ -130,7 +132,8 @@ def construct_market_prices(client):
     print(df)
     return df
 
-def should_trade_based_on_time():
+
+async def should_trade_based_on_time():
     """
     Check if the current time in South African time (SAST) is within trading hours and not on weekends.
 
@@ -154,12 +157,12 @@ def should_trade_based_on_time():
     # Return True if the current time is within trading hours
     return start_time <= current_time <= end_time
 
-def get_oracle_price(client, market):
+async def get_oracle_price(client, market):
 
     # Protect API
-    time.sleep(0.2)
+    await asyncio.sleep(0.2)
 
-    positions = client.markets.get_perpetual_markets(market=market).data
+    positions = await client.markets.get_perpetual_markets(market=market)
     oracle_price = positions["markets"][market]["oraclePrice"]
 
     return oracle_price
